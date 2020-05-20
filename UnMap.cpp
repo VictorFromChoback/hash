@@ -11,7 +11,8 @@ class List
     friend std :: ostream& operator<<(std::ostream& out, const List<U, AllocatorOut>& A);
 
 public:
-    class Node {
+    class Node
+    {
     public:
         T* data_;
         Node* next_ = nullptr;
@@ -33,7 +34,7 @@ public:
         }
     };
 
-private:
+public:
     template<bool isConst>
     class myIter {
     public:
@@ -53,10 +54,11 @@ private:
             ++(*this);
             return answer;
         }
+        myIter() : currentNode(nullptr) {}
         myIter(Node* other) : currentNode(other) {}
         myIter(const myIter& other) : currentNode(other.currentNode) {}
         bool operator==(const myIter& other) {
-            return currentNode = other.currentNode;
+            return currentNode == other.currentNode;
         }
         bool operator!=(const myIter& other) {
             return !this->operator==(other);
@@ -73,7 +75,6 @@ private:
         }
     };
 
-
 private:
     Node* head_ = nullptr;
     Node* tail_ = nullptr;
@@ -81,12 +82,10 @@ private:
     using additionalAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Node>;
     additionalAllocator nodeAlloc_;
     size_t size_ = 0;
-    bool notBuild = true;
     template<typename... Args>
     Node* requireNode(Args&& ...args);
     void removeNode(Node* ptr);
-    template<typename... Args>
-    void makeHeadTail(Args&& ...args);
+    void makeHeadTail();
 
 public:
 
@@ -138,16 +137,14 @@ public:
     List<T, Allocator>& operator=(const List<T, Allocator>& A);
     List<T, Allocator>& operator=(List<T, Allocator>&& A);
     size_t size() const;
-    template<typename U>
-    void push_back(U&& value);
-    template<typename U>
-    void push_front(U&& value);
+    void push_back(const T& value);
+    void push_back(T&& value);
+    void push_front(const T& value);
+    void push_front(T&& value);
     void pop_back();
     void pop_front();
-    void insert_before(Node* ptr, const T& value);
     void insert_after(Node* ptr, const T& value);
     void insert_after(Node* ptr, T&& value);
-    void insert_before(Node* ptr, T&& value);
     iterator insert_after_iterator(iterator it, const T& value);
     iterator insert_after_iterator(iterator it, T&& value);
     Node* erase(Node* ptr);
@@ -184,7 +181,6 @@ List<T, Allocator>::List(List<T, Allocator>&& A) {
     size_ = A.size_;
     A.head_ = nullptr;
     A.tail_ = nullptr;
-    A.notBuild = true;
     A.size_ = 0;
 
 }
@@ -195,7 +191,6 @@ List<T, Allocator>& List<T, Allocator>::operator=(List<T, Allocator>&& A) {
     if (this != &A) {
         List<T, Allocator>(std::move(A)).swap(*this);
     }
-
     return *this;
 }
 
@@ -217,6 +212,10 @@ typename List<T, Allocator>::iterator& List<T, Allocator>::iterator::operator++(
 template<typename T, typename Allocator>
 template<typename... Args>
 typename List<T, Allocator>::Node* List<T, Allocator>::emplace(Node* pos, Args&& ...args) {
+    if (!pos) {
+        pos = head_;
+    }
+
     Node* newNode = requireNode(std::forward<Args>(args)...);
     Node* afterPtr = pos->next_;
     pos->setSubsequent(newNode);
@@ -253,21 +252,12 @@ typename List<T, Allocator>::const_iterator List<T, Allocator>::const_iterator::
 
 template<typename T, typename Allocator>
 typename List<T, Allocator>::iterator List<T, Allocator>::begin() {
-    if (!head_) {
-        return nullptr;
-    } else {
-        return iterator(head_->next_);
-    }
+    return iterator(head_->next_);
 }
 
 template<typename T, typename Allocator>
 typename List<T, Allocator>::const_iterator List<T, Allocator>::cbegin() const {
-    if (!head_) {
-        return nullptr;
-    } else {
-        return const_iterator(head_->next_);
-    }
-
+    return const_iterator(head_->next_);
 }
 
 template<typename T, typename Allocator>
@@ -334,15 +324,13 @@ void List<T, Allocator>::removeNode(Node* ptr) {
 
 template<typename T, typename Allocator>
 List<T, Allocator>::List(const Allocator& alloc) : alloc_(std::allocator_traits<Allocator>::select_on_container_copy_construction(alloc)) {
-    head_ = new Node();
-    tail_ = new Node();
+    makeHeadTail();
 }
 
 template<typename T, typename Allocator>
-template<typename... Args>
-void List<T, Allocator>::makeHeadTail(Args&& ...args) {
-    head_ = requireNode(std::forward<Args>(args)...);
-    tail_ = requireNode(std::forward<Args>(args)...);
+void List<T, Allocator>::makeHeadTail() {
+    head_ = new Node();
+    tail_ = new Node();
     head_->setSubsequent(tail_);
 }
 
@@ -354,16 +342,25 @@ List<T, Allocator>::List(size_t count, const T& value, const Allocator& alloc) :
 }
 
 template<typename T, typename Allocator>
-template<typename U>
-void List<T, Allocator>::push_back(U&& value) {
-    insert_before(tail_, std::forward(value));
+void List<T, Allocator>::push_back(const T& value) {
+    insert_after(tail_->prev_, value);
 }
 
 template<typename T, typename Allocator>
-template<typename U>
-void List<T, Allocator>::push_front(U&& value) {
-    inseft_after(head_, std::forward(value));
+void List<T, Allocator>::push_back(T&& value) {
+    insert_after(tail_->prev_, std::move(value));
 }
+
+template<typename T, typename Allocator>
+void List<T, Allocator>::push_front(const T& value) {
+    insert_after(head_, value);
+}
+
+template<typename T, typename Allocator>
+void List<T, Allocator>::push_front(T&& value) {
+    insert_after(head_, std::move(value));
+}
+
 
 template<typename T, typename Allocator>
 void List<T, Allocator>::pop_back() {
@@ -389,16 +386,6 @@ void List<T, Allocator>::insert_after(Node* ptr, const T& value) {
 template<typename T, typename Allocator>
 void List<T, Allocator>::insert_after(Node* ptr, T&& value) {
     emplace(ptr, std::move(value));
-}
-
-template<typename T, typename Allocator>
-void List<T, Allocator>::insert_before(Node* ptr, const T& value) {
-    emplace(ptr->prev_, value);
-}
-
-template<typename T, typename Allocator>
-void List<T, Allocator>::insert_before(Node* ptr, T&& value) {
-    emplace(ptr->prev_, std::move(value));
 }
 
 template<typename T, typename Allocator>
@@ -885,10 +872,11 @@ void UnorderedMap<Key, Value, Hash, Equal, Alloc>::rehash_(size_t newSize) {
     dataArray_ = new subIterator [capacity_];
 
     for (size_t i = 0; i < capacity_; ++i) {
-        if (!ar[i].begin()) {
+        if (!ar[i].size()) {
             continue;
         }
-        dataArray_[i] = *ar[i].begin();
+        dataArray_[i] = *(ar[i].begin());
+
     }
 
     typename List<NodeType, Alloc>::Node* v = listOfNodes.first();
