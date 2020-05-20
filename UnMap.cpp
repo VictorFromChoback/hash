@@ -41,8 +41,8 @@ public:
         using iterator_category = std::forward_iterator_tag;
         using value_type = typename std::conditional<isConst, const T, T>::type;
         using difference_type = size_t;
-        using pointer_type = typename std::conditional<isConst, const T*, T*>::type;
-        using reference_type = typename std::conditional<isConst, const T&, T&>::type;
+        using pointer = typename std::conditional<isConst, const T*, T*>::type;
+        using reference = typename std::conditional<isConst, const T&, T&>::type;
 
         Node* currentNode = nullptr;
         myIter& operator++() {
@@ -56,7 +56,8 @@ public:
         }
         myIter() : currentNode(nullptr) {}
         myIter(Node* other) : currentNode(other) {}
-        myIter(const myIter& other) : currentNode(other.currentNode) {}
+        template<bool otherConst>
+        myIter(const myIter<otherConst>& other) : currentNode(other.currentNode) {}
         bool operator==(const myIter& other) {
             return currentNode == other.currentNode;
         }
@@ -66,11 +67,11 @@ public:
         operator bool() const {
             return currentNode;
         }
-        reference_type operator*() {
+        reference operator*() {
             return *(currentNode->data_);
         }
 
-        pointer_type operator->() {
+        pointer operator->() {
             return currentNode->data_;
         }
     };
@@ -423,48 +424,77 @@ private:
     void deallocateNode_(NodeType* ptr);
 
 public:
-
-    class iterator {
+    template<bool isConst>
+    class myIter {
     public:
+        using difference_type = size_t;
         using iterator_category = std::forward_iterator_tag;
-        using value_type = NodeType;
-        using pointer = NodeType*;
-        using difference_type = size_t;
-        using reference = NodeType&;
-        subIterator data;
-
-        iterator& operator++();
-        iterator operator++(int) {return iterator(data++);}
-        iterator& operator+=(size_t k);
-        iterator operator+(size_t k) {iterator it = *this; return it += k;}
-        iterator& operator=(const iterator& it) {data = it.data; return *this;}
-        iterator(const subIterator& other) : data(other) {}
-        value_type* operator->() {return data.operator->();}
-        bool operator==(const iterator& other) {return data == other.data;}
-        bool operator!=(const iterator& other) {return !(*this == other);}
-        value_type& operator*() {return *data;}
-
-    };
-
-    class const_iterator {
-    public:
-        using value_type = const NodeType;
+        using value_type = typename std::conditional<isConst, const NodeType, NodeType>::type;
         using pointer = value_type*;
-        using difference_type = size_t;
-        subConstIterator data;
+        using reference = value_type&;
 
-        const_iterator& operator=(const const_iterator& it) {data = it.data; return *this;}
-        const_iterator& operator++();
-        const_iterator operator++(int) {return const_iterator(data++);}
-        const_iterator& operator+=(size_t k);
-        const_iterator operator+(size_t k) {const_iterator it = *this; return it += k;}
-        const_iterator(const subConstIterator& other) : data(other) {}
-        const_iterator(const iterator& other) : data(other.data) {}
-        bool operator==(const const_iterator& other) {return data == other.data;}
-        bool operator!=(const const_iterator& other) {return !(*this == other);}
-        value_type& operator*() {return *data;}
-        const value_type* operator->() {return data.operator->();}
+        subIterator data;
+        myIter& operator++() {
+            ++data;
+            return *this;
+        }
+
+        myIter operator++(int) {
+            myIter copy = *this;
+            ++(*this);
+            return copy;
+        }
+
+        myIter& operator+=(size_t k) {
+            for (size_t i = 0; i < k; ++i) {
+                ++(*this);
+            }
+            return *this;
+        }
+
+        myIter operator+(size_t k) {
+            myIter copy = *this;
+            return (copy += k);
+        }
+
+        myIter& operator=(const myIter& other) {
+            data = other.data;
+            return *this;
+        }
+
+        template<bool otherConst>
+        myIter(const myIter<otherConst>& other) : data(other.data) {}
+
+        myIter(const subIterator& other) : data(other) {}
+
+        myIter(const subConstIterator& other) : data(other) {}
+
+        pointer operator->() {
+            return data.operator->();
+        }
+
+        reference operator*() {
+            return *data;
+        }
+
+        bool operator==(const myIter& other) {
+            return data == other.data;
+        }
+
+        bool operator!=(const myIter& other) {
+            return !(*this == other);
+        }
+
+        operator bool() const {
+            return data;
+        }
+
     };
+
+public:
+
+    using iterator = myIter<false>;
+    using const_iterator = myIter<true>;
 
     UnorderedMap();
     UnorderedMap(const UnorderedMap& other);
@@ -584,12 +614,6 @@ double UnorderedMap<Key, Value, Hash, Equal, Alloc>::load_factor() const {
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator& UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator::operator++() {
-    ++data;
-    return *this;
-}
-
-template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 void UnorderedMap<Key, Value, Hash, Equal, Alloc>::max_load_factor(double alpha) {
     maxLoadFactor_ = alpha;
     checkLoad_();
@@ -602,40 +626,19 @@ void UnorderedMap<Key, Value, Hash, Equal, Alloc>::reserve(size_t count) {
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator& UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator::operator++() {
-    ++data;
-    return *this;
-}
-
-template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator& UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator::operator+=(size_t k) {
-    for (size_t i = 0; i < k; ++i) {
-        this->operator++();
-    }
-    return *this;
-}
-
-
-template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator& UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator::operator+=(size_t k) {
-    for (size_t i = 0; i < k; ++i) {
-        this->operator++();
-    }
-    return *this;
-}
-
-template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::begin() {
     return UnorderedMap::iterator(listOfNodes.begin());
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::cbegin() const {
+typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::
+                                                                                                    cbegin() const {
     return UnorderedMap::const_iterator(listOfNodes.cbegin());
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::cend() const {
+typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::const_iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::
+                                                                                                        cend() const {
     return UnorderedMap::const_iterator(listOfNodes.cend());
 }
 
@@ -711,14 +714,16 @@ UnorderedMap<Key, Value, Hash, Equal, Alloc>::~UnorderedMap() {
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool> UnorderedMap<Key, Value, Hash, Equal, Alloc>::insert(const NodeType& x) {
+std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool>
+                                UnorderedMap<Key, Value, Hash, Equal, Alloc>::insert(const NodeType& x) {
     checkLoad_();
     return insertNode_(x, x);
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 template<typename U>
-std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool> UnorderedMap<Key, Value, Hash, Equal, Alloc>::insert(U&& x) {
+std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool>
+                                UnorderedMap<Key, Value, Hash, Equal, Alloc>::insert(U&& x) {
     checkLoad_();
     return insertNode_(std::forward<U>(x), std::forward<U>(x));
 }
@@ -732,7 +737,7 @@ void UnorderedMap<Key, Value, Hash, Equal, Alloc>::erase(iterator it) {
     if (mainIter != it.data) {
         listOfNodes.erase(it.data);
     } else {
-        iterator anotherIt = it + 1;
+        iterator anotherIt = it + static_cast<size_t>(1);
         if (anotherIt.data == listOfNodes.end() || !theSameHash_(anotherIt.data, (*it).first)) {
             dataArray_[curHash] = subIterator(nullptr);
             listOfNodes.erase(mainIter);
@@ -742,8 +747,6 @@ void UnorderedMap<Key, Value, Hash, Equal, Alloc>::erase(iterator it) {
         }
     }
 }
-
-//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 void UnorderedMap<Key, Value, Hash, Equal, Alloc>::erase(iterator first, iterator second) {
@@ -806,7 +809,8 @@ void UnorderedMap<Key, Value, Hash, Equal, Alloc>::rehash_(size_t newSize) {
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::find(const Key& key) {
+typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator UnorderedMap<Key, Value, Hash, Equal, Alloc>::
+                                                                                        find(const Key& key) {
     checkLoad_();
     size_t curHash = hashFunction_(key) % capacity_;
     subIterator mainIter = dataArray_[curHash];
@@ -853,7 +857,8 @@ Value& UnorderedMap<Key, Value, Hash, Equal, Alloc>::at(const Key& key) {
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 template<typename... Args>
-std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool> UnorderedMap<Key, Value, Hash, Equal, Alloc>::emplace(Args&&... args) {
+std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool>
+                                UnorderedMap<Key, Value, Hash, Equal, Alloc>::emplace(Args&&... args) {
 
     checkLoad_();
     NodeType* x = allocateNode_(std::forward<Args>(args)...);
@@ -865,7 +870,8 @@ std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool>
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 template<typename... Args>
-typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::NodeType* UnorderedMap<Key, Value, Hash, Equal, Alloc>::allocateNode_(Args&& ...args) {
+typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::NodeType*
+                    UnorderedMap<Key, Value, Hash, Equal, Alloc>::allocateNode_(Args&& ...args) {
     NodeType* ptr = std::allocator_traits<Alloc>::allocate(alloc_, 1);
     std::allocator_traits<Alloc>::construct(alloc_, ptr, std::forward<Args>(args)...);
     return ptr;
