@@ -89,40 +89,8 @@ private:
 
 public:
 
-    class iterator;
-
-    class const_iterator {
-    public:
-        const Node* currentNode = nullptr;
-        const_iterator& operator++();
-        const_iterator operator++(int);
-        const_iterator(Node* other) : currentNode(other) {}
-        const_iterator() : currentNode(nullptr) {}
-        const_iterator(const iterator& other) : currentNode(other.currentNode) {}
-        const_iterator& operator=(const_iterator other) {currentNode = other.currentNode; return *this;}
-        bool operator==(const const_iterator& other);
-        bool operator!=(const const_iterator& other);
-        operator bool() const {return currentNode;}
-        const T& operator*();
-        const T* operator->() {return (currentNode->data_);}
-
-    };
-
-    class iterator {
-    public:
-        Node* currentNode = nullptr;
-        iterator& operator++();
-        iterator operator++(int);
-        iterator(Node* other) : currentNode(other) {}
-        iterator() : currentNode(nullptr) {}
-        iterator(const const_iterator& other) : currentNode(other.currentNode) {}
-        iterator& operator=(iterator other) {currentNode = other.currentNode; return *this;}
-        T* operator->() {return (currentNode->data_);}
-        bool operator==(const iterator& other);
-        bool operator!=(const iterator& other);
-        operator bool() const {return currentNode;}
-        T& operator*();
-    };
+    using iterator = myIter<false>;
+    using const_iterator = myIter<true>;
 
     bool headEmpty() {return !head_;}
     explicit List(const Allocator& alloc = Allocator());
@@ -202,13 +170,6 @@ typename List<T, Allocator>::Node* List<T, Allocator>::requireNode(Args&& ...arg
     return ptr;
 }
 
-
-template<typename T, typename Allocator>
-typename List<T, Allocator>::iterator& List<T, Allocator>::iterator::operator++() {
-    currentNode = currentNode->next_;
-    return *this;
-}
-
 template<typename T, typename Allocator>
 template<typename... Args>
 typename List<T, Allocator>::Node* List<T, Allocator>::emplace(Node* pos, Args&& ...args) {
@@ -230,25 +191,6 @@ typename List<T, Allocator>::iterator List<T, Allocator>::emplace(iterator pos, 
     return iterator(emplace(pos.currentNode, std::forward<Args>(args)...));
 }
 
-template<typename T, typename Allocator>
-typename List<T, Allocator>::iterator List<T, Allocator>::iterator::operator++(int) {
-    iterator other = *this;
-    ++(*this);
-    return other;
-}
-
-template<typename T, typename Allocator>
-typename List<T, Allocator>::const_iterator& List<T, Allocator>::const_iterator::operator++() {
-    currentNode = currentNode->next_;
-    return *this;
-}
-
-template<typename T, typename Allocator>
-typename List<T, Allocator>::const_iterator List<T, Allocator>::const_iterator::operator++(int) {
-    const_iterator other = *this;
-    ++(*this);
-    return other;
-}
 
 template<typename T, typename Allocator>
 typename List<T, Allocator>::iterator List<T, Allocator>::begin() {
@@ -261,14 +203,17 @@ typename List<T, Allocator>::const_iterator List<T, Allocator>::cbegin() const {
 }
 
 template<typename T, typename Allocator>
-typename List<T, Allocator>::iterator List<T, Allocator>::insert_after_iterator(typename List<T, Allocator>::iterator it, const T& value) {
+typename List<T, Allocator>::iterator List<T, Allocator>::insert_after_iterator(
+                            typename List<T, Allocator>::iterator it, const T& value) {
     Node* ptr = it.currentNode;
     insert_after(ptr, value);
     return iterator(ptr->next_);
 }
 
 template<typename T, typename Allocator>
-typename List<T, Allocator>::iterator List<T, Allocator>::insert_after_iterator(typename List<T, Allocator>::iterator it, T&& value) {
+typename List<T, Allocator>::iterator List<T, Allocator>::insert_after_iterator(
+                            typename List<T, Allocator>::iterator it, T&& value) {
+
     Node* ptr = it.currentNode;
     insert_after(ptr, std::move(value));
     return iterator(ptr->next_);
@@ -285,36 +230,6 @@ typename List<T, Allocator>::const_iterator List<T, Allocator>::cend() const {
 }
 
 template<typename T, typename Allocator>
-bool List<T, Allocator>::const_iterator::operator==(const const_iterator& other) {
-    return other.currentNode == currentNode;
-}
-
-template<typename T, typename Allocator>
-bool List<T, Allocator>::const_iterator::operator!=(const const_iterator& other) {
-    return !(*this == other);
-}
-
-template<typename T, typename Allocator>
-bool List<T, Allocator>::iterator::operator==(const iterator& other) {
-    return other.currentNode == currentNode;
-}
-
-template<typename T, typename Allocator>
-bool List<T, Allocator>::iterator::operator!=(const iterator& other) {
-    return !(*this == other);
-}
-
-template<typename T, typename Allocator>
-T& List<T, Allocator>::iterator::operator*() {
-    return *(currentNode->data_);
-}
-
-template<typename T, typename Allocator>
-const T& List<T, Allocator>::const_iterator::operator*() {
-    return *(currentNode->data_);
-}
-
-template<typename T, typename Allocator>
 void List<T, Allocator>::removeNode(Node* ptr) {
     std::allocator_traits<Allocator>::destroy(alloc_, ptr->data_);
     std::allocator_traits<Allocator>::deallocate(alloc_, ptr->data_, 1);
@@ -323,7 +238,8 @@ void List<T, Allocator>::removeNode(Node* ptr) {
 }
 
 template<typename T, typename Allocator>
-List<T, Allocator>::List(const Allocator& alloc) : alloc_(std::allocator_traits<Allocator>::select_on_container_copy_construction(alloc)) {
+List<T, Allocator>::List(const Allocator& alloc) :
+                    alloc_(std::allocator_traits<Allocator>::select_on_container_copy_construction(alloc)) {
     makeHeadTail();
 }
 
@@ -506,7 +422,6 @@ private:
     NodeType* allocateNode_(Args&& ...args);
     void deallocateNode_(NodeType* ptr);
 
-
 public:
 
     class iterator {
@@ -580,6 +495,10 @@ public:
     void reserve(size_t count);
     void swap(UnorderedMap<Key, Value, Hash, Equal, Alloc>& other) noexcept;
 
+private:
+    template<typename... Args>
+    std::pair<iterator, bool> insertNode_(const NodeType& value, Args&& ...args);
+
 };
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
@@ -604,6 +523,36 @@ std::ostream& operator<<(std::ostream& out, UnorderedMap<T, U, H, E, A>& Table) 
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
+template<typename... Args>
+std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool>
+                                UnorderedMap<Key, Value, Hash, Equal, Alloc>::insertNode_(
+                                                                                        const NodeType& value,
+                                                                                        Args&& ...args) {
+
+    checkLoad_();
+    size_t indHash = hashFunction_(value.first) % capacity_;
+    subIterator currentNode = dataArray_[indHash];
+
+    if (!currentNode) {
+        listOfNodes.emplace(subIterator(nullptr), std::forward<Args>(args)...);
+        ++size_;
+        dataArray_[indHash] = listOfNodes.begin();
+        return {listOfNodes.begin(), true};
+    }
+
+    for (subIterator it = currentNode; it != listOfNodes.end() && theSameHash_(it, value.first); ++it) {
+        NodeType& cur = *it;
+        if (equalityFunction_(value.first, cur.first)) {
+            return {iterator(it), false};
+        }
+    }
+
+    ++size_;
+    subIterator answer = listOfNodes.emplace(currentNode, std::forward<Args>(args)...);
+    return {answer, true};
+}
+
+template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 bool UnorderedMap<Key, Value, Hash, Equal, Alloc>::theSameHash_(subIterator it, const Key& value) {
     Hash hashF;
     size_t curHash = hashF((*it).first);
@@ -618,6 +567,7 @@ bool UnorderedMap<Key, Value, Hash, Equal, Alloc>::theSameHash_(subConstIterator
     size_t valueHash = hashF(value);
     return curHash == valueHash;
 }
+
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 void UnorderedMap<Key, Value, Hash, Equal, Alloc>::checkLoad_() {
@@ -763,55 +713,14 @@ UnorderedMap<Key, Value, Hash, Equal, Alloc>::~UnorderedMap() {
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool> UnorderedMap<Key, Value, Hash, Equal, Alloc>::insert(const NodeType& x) {
     checkLoad_();
-    size_t indHash = hashFunction_(x.first) % capacity_;
-    subIterator currentNode = dataArray_[indHash];
-
-    if (!currentNode) {
-        listOfNodes.push_front(x);
-        ++size_;
-        dataArray_[indHash] = listOfNodes.begin();
-        return {listOfNodes.begin(), true};
-    }
-
-    for (subIterator it = currentNode; it != listOfNodes.end() && theSameHash_(it, x.first); ++it) {
-        NodeType& cur = *it;
-        if (equalityFunction_(x.first, cur.first)) {
-            return {iterator(it), false};
-        }
-    }
-
-    ++size_;
-    subIterator answer = listOfNodes.insert_after_iterator(currentNode, x);
-    return {answer, true};
-
+    return insertNode_(x, x);
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 template<typename U>
 std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool> UnorderedMap<Key, Value, Hash, Equal, Alloc>::insert(U&& x) {
     checkLoad_();
-    size_t indHash = hashFunction_(x.first) % capacity_;
-    subIterator currentNode = dataArray_[indHash];
-
-    if (!currentNode) {
-        subIterator bad(nullptr);
-        listOfNodes.emplace(bad, std::forward<U>(x));
-        ++size_;
-        dataArray_[indHash] = listOfNodes.begin();
-        return {listOfNodes.begin(), true};
-    }
-
-    for (subIterator it = currentNode; it != listOfNodes.end() && theSameHash_(it, x.first); ++it) {
-        NodeType& cur = *it;
-        if (equalityFunction_(x.first, cur.first)) {
-            return {iterator(it), false};
-        }
-    }
-
-    ++size_;
-    subIterator answer = listOfNodes.emplace(currentNode, std::forward<U>(x));
-    return {answer, true};
-
+    return insertNode_(std::forward<U>(x), std::forward<U>(x));
 }
 
 
@@ -833,6 +742,8 @@ void UnorderedMap<Key, Value, Hash, Equal, Alloc>::erase(iterator it) {
         }
     }
 }
+
+//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 void UnorderedMap<Key, Value, Hash, Equal, Alloc>::erase(iterator first, iterator second) {
@@ -917,26 +828,15 @@ typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator UnorderedMap<Key
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
 Value& UnorderedMap<Key, Value, Hash, Equal, Alloc>::operator[](const Key& key) {
     checkLoad_();
-    size_t curHash = hashFunction_(key) % capacity_;
-    subIterator mainIter = dataArray_[curHash];
+    iterator resFind = find(key);
 
-    if (!mainIter) {
-        listOfNodes.push_front({key, Value()});
-        ++size_;
-        dataArray_[curHash] = listOfNodes.begin();
-        return (*dataArray_[curHash]).second;
+    if (resFind == end()) {
+        auto answer = insertNode_({key, Value()}, key, std::move(Value()));
+        return answer.first->second;
+    } else {
+        return resFind->second;
     }
 
-    for (subIterator it = mainIter; it != listOfNodes.end() && theSameHash_(it, key); ++it) {
-        NodeType& cur = *it;
-        if (equalityFunction_(cur.first, key)) {
-            return cur.second;
-        }
-    }
-
-    ++size_;
-    subIterator it = listOfNodes.insert_after_iterator(mainIter, {key, Value()});
-    return (*it).second;
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
@@ -957,29 +857,10 @@ std::pair<typename UnorderedMap<Key, Value, Hash, Equal, Alloc>::iterator, bool>
 
     checkLoad_();
     NodeType* x = allocateNode_(std::forward<Args>(args)...);
-    size_t indHash = hashFunction_(x->first);
-    subIterator currentNode = dataArray_[indHash % capacity_];
-    subIterator badIter = subIterator(nullptr);
-
-
-    if (!currentNode) {
-        listOfNodes.emplace(badIter, std::forward<Args>(args)...);
-        ++size_;
-        dataArray_[indHash % capacity_] = listOfNodes.begin();
-        return {listOfNodes.begin(), true};
-    }
-
-    for (subIterator it = currentNode; it != listOfNodes.end() && theSameHash_(it, x->first); ++it) {
-        NodeType& cur = *it;
-        if (equalityFunction_(x->first, cur.first)) {
-            return {iterator(it), false};
-        }
-    }
+    auto answer = insertNode_(*x, std::forward<Args>(args)...);
 
     deallocateNode_(x);
-    ++size_;
-    subIterator answer = listOfNodes.emplace(currentNode, std::forward<Args>(args)...);
-    return {iterator(answer), true};
+    return answer;
 }
 
 template<typename Key, typename Value, typename Hash, typename Equal, typename Alloc>
